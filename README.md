@@ -5,7 +5,7 @@
 
 Real-time plant health monitoring system using Raspberry Pi with environmental sensors and web-based dashboard.
 
-![Dashboard Screenshot](docs/screenshots/dashboard.png)
+![Dashboard Screenshot](docs/screenshots/dashboard-desktop.png)
 
 ## ✨ Features
 
