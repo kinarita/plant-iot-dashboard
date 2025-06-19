@@ -201,13 +201,9 @@ CREATE TABLE sensor_data (
 
 ### Email Alert Example
 ![Email Alert](docs/screenshots/email-alert.png)
-## 🤝 Contributing
+## 📝 Note
 
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
+This is a personal learning and experimental project.
 
 ## 📄 License
 
