@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+
 # 🌱 Plant IoT Dashboard
 
 *Read this in other languages: [日本語](README_ja.md)*
@@ -54,7 +54,7 @@ SEN0193 Soil Sensor:
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/yourusername/plant-iot-dashboard.git
+git clone https://github.com/kinarita/plant-iot-dashboard.git
 cd plant-iot-dashboard
 ```
 
@@ -223,7 +223,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 If you have questions or issues:
 - Open an [Issue](https://github.com/yourusername/plant-iot-dashboard/issues)
 - Check [Documentation](docs/)
-- Email: your-email@example.com
+- Email: kinarita@gmail.com
 
 ---
 
@@ -231,4 +231,3 @@ If you have questions or issues:
 =======
 # plant-iot-dashboard
  🌱 IoT Plant Monitoring Dashboard - Real-time plant health monitoring with Raspberry Pi sensors
->>>>>>> 2f21fddd962e6468e8be7ab961bb9a3a23134d9e
