@@ -55,7 +55,7 @@ SEN0193 土壌センサー:
 
 ### 1. リポジトリをクローン
 ```bash
-git clone https://github.com/yourusername/plant-iot-dashboard.git
+git clone https://github.com/kinarita/plant-iot-dashboard.git
 cd plant-iot-dashboard
 ```
 
