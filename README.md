@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 🌱 Plant IoT Dashboard
 
 *Read this in other languages: [日本語](README_ja.md)*
@@ -227,3 +228,7 @@ If you have questions or issues:
 ---
 
 **Made with 🌱 for healthy plants and happy gardeners!**
+=======
+# plant-iot-dashboard
+ 🌱 IoT Plant Monitoring Dashboard - Real-time plant health monitoring with Raspberry Pi sensors
+>>>>>>> 2f21fddd962e6468e8be7ab961bb9a3a23134d9e
