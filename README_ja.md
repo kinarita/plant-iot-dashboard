@@ -194,7 +194,7 @@ CREATE TABLE sensor_data (
 ![デスクトップ表示](docs/screenshots/dashboard-desktop.png)
 
 ### モバイルダッシュボード
-![モバイル表示](docs/screenshots/dashboard-mobile.png)
+<img src="docs/screenshots/dashboard-mobile.png" alt="Mobile View" width="300">
 
 ### メールアラート例
 ![メールアラート](docs/screenshots/email-alert.png)

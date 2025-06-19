@@ -195,7 +195,7 @@ CREATE TABLE sensor_data (
 ![Desktop View](docs/screenshots/dashboard-desktop.png)
 
 ### Mobile Dashboard  
-![Mobile View](docs/screenshots/dashboard-mobile.png)
+<img src="docs/screenshots/dashboard-mobile.png" alt="Mobile View" width="300">
 
 ### Email Alert Example
 ![Email Alert](docs/screenshots/email-alert.png)
