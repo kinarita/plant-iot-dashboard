@@ -4,7 +4,7 @@
 
 Raspberry Piと環境センサーを使用したリアルタイム植物健康監視システム。Webベースのダッシュボード付き。
 
-![ダッシュボードスクリーンショット](docs/screenshots/dashboard.png)
+![ダッシュボードスクリーンショット](docs/screenshots/dashboard-desktop.png)
 
 ## ✨ 機能
 
@@ -223,7 +223,7 @@ CREATE TABLE sensor_data (
 ご質問や問題がある場合:
 - [Issue](https://github.com/yourusername/plant-iot-dashboard/issues)を作成
 - [ドキュメント](docs/)を確認
-- メール: your-email@example.com
+- メール: kinarita@gmail.com
 
 ---
 

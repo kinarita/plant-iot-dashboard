@@ -1,0 +1,5 @@
+bottle==0.12.25
+SQLAlchemy==2.0.19
+python-dotenv==1.0.0
+RPi.GPIO==0.7.1
+spidev==3.6
