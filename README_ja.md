@@ -27,6 +27,8 @@ Raspberry Piと環境センサーを使用したリアルタイム植物健康�
 
 ## 🔌 配線図
 
+<img src="docs/screenshots/wiring-diagram.png" alt="Wiring Diagram" width="600">
+
 ```
 DHT11:
 - VCC → 3.3V

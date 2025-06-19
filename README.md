@@ -28,6 +28,8 @@ Real-time plant health monitoring system using Raspberry Pi with environmental s
 
 ## 🔌 Wiring Diagram
 
+<img src="docs/screenshots/wiring-diagram.png" alt="Wiring Diagram" width="600">
+
 ```
 DHT11:
 - VCC → 3.3V
