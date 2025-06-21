@@ -267,22 +267,60 @@ def index():
         humidities = [round(r[2], 1) if r[2] else None for r in rows]
         moistures = [round(r[3], 1) if r[3] else None for r in rows]
     
-    # 統計情報の計算
-    cursor.execute(f'''
-        SELECT 
-            COUNT(*) as count,
-            AVG(temperature) as avg_temp,
-            MIN(temperature) as min_temp,
-            MAX(temperature) as max_temp,
-            AVG(humidity) as avg_humidity,
-            MIN(humidity) as min_humidity,
-            MAX(humidity) as max_humidity,
-            AVG(soil_moisture) as avg_moisture,
-            MIN(soil_moisture) as min_moisture,
-            MAX(soil_moisture) as max_moisture
-        FROM {table_name}
-        WHERE timestamp >= {time_condition}{location_condition}
-    ''')
+    # 統計情報の計算（集計方法に応じて変更）
+    if aggregate_param == "raw":
+        # 生データ: 最新の1件
+        cursor.execute(f'''
+            SELECT 
+                1 as count,
+                temperature as avg_temp,
+                temperature as min_temp,
+                temperature as max_temp,
+                humidity as avg_humidity,
+                humidity as min_humidity,
+                humidity as max_humidity,
+                soil_moisture as avg_moisture,
+                soil_moisture as min_moisture,
+                soil_moisture as max_moisture
+            FROM {table_name}
+            WHERE timestamp >= {time_condition}{location_condition}
+            ORDER BY timestamp DESC
+            LIMIT 1
+        ''')
+    elif aggregate_param == "hourly":
+        # 1時間平均: 直近1時間の平均
+        cursor.execute(f'''
+            SELECT 
+                COUNT(*) as count,
+                AVG(temperature) as avg_temp,
+                MIN(temperature) as min_temp,
+                MAX(temperature) as max_temp,
+                AVG(humidity) as avg_humidity,
+                MIN(humidity) as min_humidity,
+                MAX(humidity) as max_humidity,
+                AVG(soil_moisture) as avg_moisture,
+                MIN(soil_moisture) as min_moisture,
+                MAX(soil_moisture) as max_moisture
+            FROM {table_name}
+            WHERE timestamp >= datetime('now', '-1 hours'){location_condition}
+        ''')
+    elif aggregate_param == "daily":
+        # 1日平均: 直近1日の平均
+        cursor.execute(f'''
+            SELECT 
+                COUNT(*) as count,
+                AVG(temperature) as avg_temp,
+                MIN(temperature) as min_temp,
+                MAX(temperature) as max_temp,
+                AVG(humidity) as avg_humidity,
+                MIN(humidity) as min_humidity,
+                MAX(humidity) as max_humidity,
+                AVG(soil_moisture) as avg_moisture,
+                MIN(soil_moisture) as min_moisture,
+                MAX(soil_moisture) as max_moisture
+            FROM {table_name}
+            WHERE timestamp >= datetime('now', '-1 days'){location_condition}
+        ''')
     
     stats = cursor.fetchone()
     conn.close()
