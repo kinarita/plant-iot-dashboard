@@ -452,31 +452,40 @@ def index():
                     padding: 1.5rem;
                     box-shadow: var(--shadow);
                     transition: transform 0.2s ease, box-shadow 0.2s ease;
+                    text-align: center;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
                 }
-                
+
                 .stat-card:hover {
                     transform: translateY(-2px);
                     box-shadow: 0 4px 8px rgba(0,0,0,0.15);
                 }
-                
+
                 .stat-title { 
                     font-weight: 600;
-                    margin-bottom: 1rem;
+                    margin-bottom: 0.5rem;
                     font-size: 1.1rem;
                     display: flex;
                     align-items: center;
+                    justify-content: center;
                     gap: 0.5rem;
                 }
-                
+
                 .stat-value { 
                     font-size: 2rem;
-                    margin: 0.5rem 0;
+                    margin: 0.3rem 0;
                     font-weight: 700;
+                    text-align: center;
                 }
-                
+
                 .stat-range {
                     font-size: 0.9rem;
                     color: var(--text-gray);
+                    text-align: center;
+                    margin: 0;
                 }
                 
                 .temp { color: var(--accent-red); }
