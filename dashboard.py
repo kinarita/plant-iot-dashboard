@@ -179,93 +179,170 @@ def index():
         # sensor_locationカラムが存在しない場合
         locations = ["default"]
     
-    # センサー場所によるフィルター条件を追加
-    location_condition = ""
-    if location_param != "all" and location_param in locations:
-        location_condition = f" AND sensor_location = '{location_param}'"
-    
     # 現在選択中のセンサー場所情報を設定
     current_location = "全ての場所"
     if location_param != "all" and location_param in locations:
         current_location = location_param
-    
-    # 集計方法による SQL クエリの変更
-    if aggregate_param == "raw":
-        cursor.execute(f'''
-            SELECT timestamp, temperature, humidity, soil_moisture
-            FROM {table_name}
-            WHERE timestamp >= {time_condition}{location_condition}
-            ORDER BY timestamp ASC
-        ''')
-        rows = cursor.fetchall()
+
+    # グラフデータの取得（修正版）
+    if location_param == "all":
+        # 全ての場所選択時: 場所別にデータを分けて取得
+        chart_data_by_location = {}
         
-        # 高度な時間フォーマット処理
-        data_count = len(rows)
-        time_format_rule = get_optimal_time_format(range_param, aggregate_param, data_count, screen_width)
+        for location in locations:
+            # 各場所のデータを個別に取得
+            location_condition = f" AND sensor_location = '{location}'"
+            
+            if aggregate_param == "raw":
+                # 生データ
+                cursor.execute(f'''
+                    SELECT timestamp, temperature, humidity, soil_moisture 
+                    FROM {table_name}
+                    WHERE timestamp >= {time_condition}{location_condition}
+                    ORDER BY timestamp
+                ''')
+            elif aggregate_param == "hourly":
+                # 1時間平均
+                cursor.execute(f'''
+                    SELECT 
+                        strftime('%Y-%m-%d %H:00:00', timestamp) as hour_timestamp,
+                        AVG(temperature) as temperature,
+                        AVG(humidity) as humidity,
+                        AVG(soil_moisture) as soil_moisture
+                    FROM {table_name}
+                    WHERE timestamp >= {time_condition}{location_condition}
+                    GROUP BY strftime('%Y-%m-%d %H', timestamp)
+                    ORDER BY hour_timestamp
+                ''')
+            elif aggregate_param == "daily":
+                # 1日平均
+                cursor.execute(f'''
+                    SELECT 
+                        strftime('%Y-%m-%d 00:00:00', timestamp) as day_timestamp,
+                        AVG(temperature) as temperature,
+                        AVG(humidity) as humidity,
+                        AVG(soil_moisture) as soil_moisture
+                    FROM {table_name}
+                    WHERE timestamp >= {time_condition}{location_condition}
+                    GROUP BY strftime('%Y-%m-%d', timestamp)
+                    ORDER BY day_timestamp
+                ''')
+            
+            # この場所のデータを取得
+            location_data = cursor.fetchall()
+            
+            # 高度な時間フォーマット処理
+            data_count = len(location_data)
+            formatted_timestamps = []
+            for r in location_data:
+                timestamp_str = r[0]
+                formatted_time = format_timestamp(timestamp_str, aggregate_param, range_param, data_count, screen_width)
+                formatted_timestamps.append(formatted_time)
+            
+            # データを整理
+            chart_data_by_location[location] = {
+                'labels': formatted_timestamps,
+                'temperature': [round(r[1], 1) if r[1] else None for r in location_data],
+                'humidity': [round(r[2], 1) if r[2] else None for r in location_data],
+                'soil_moisture': [round(r[3], 1) if r[3] else None for r in location_data]
+            }
         
-        timestamps = []
-        for r in rows:
-            timestamp_str = r[0]
-            formatted_time = format_timestamp(timestamp_str, aggregate_param, range_param, data_count, screen_width)
-            timestamps.append(formatted_time)
+        # テンプレートに渡すデータ
+        chart_data = chart_data_by_location
+        # 全体統計用のタイムスタンプ（最初の場所のものを使用）
+        timestamps = chart_data[locations[0]]['labels'] if locations and locations[0] in chart_data else []
         
-        temperatures = [r[1] for r in rows]
-        humidities = [r[2] for r in rows]
-        moistures = [r[3] for r in rows]
+    else:
+        # 個別場所選択時: 現在と同じロジック
+        location_condition = ""
+        if location_param != "all" and location_param in locations:
+            location_condition = f" AND sensor_location = '{location_param}'"
         
-    elif aggregate_param == "hourly":
-        cursor.execute(f'''
-            SELECT 
-                strftime('%Y-%m-%d %H:00:00', timestamp) as hour_timestamp,
-                AVG(temperature) as avg_temp,
-                AVG(humidity) as avg_humidity,
-                AVG(soil_moisture) as avg_moisture
-            FROM {table_name}
-            WHERE timestamp >= {time_condition}{location_condition}
-            GROUP BY strftime('%Y-%m-%d %H', timestamp)
-            ORDER BY hour_timestamp ASC
-        ''')
-        rows = cursor.fetchall()
-        
-        data_count = len(rows)
-        time_format_rule = get_optimal_time_format(range_param, aggregate_param, data_count, screen_width)
-        
-        timestamps = []
-        for r in rows:
-            timestamp_str = r[0]
-            formatted_time = format_timestamp(timestamp_str, aggregate_param, range_param, data_count, screen_width)
-            timestamps.append(formatted_time)
-        
-        temperatures = [round(r[1], 1) if r[1] else None for r in rows]
-        humidities = [round(r[2], 1) if r[2] else None for r in rows]
-        moistures = [round(r[3], 1) if r[3] else None for r in rows]
-        
-    elif aggregate_param == "daily":
-        cursor.execute(f'''
-            SELECT 
-                strftime('%Y-%m-%d 00:00:00', timestamp) as day_timestamp,
-                AVG(temperature) as avg_temp,
-                AVG(humidity) as avg_humidity,
-                AVG(soil_moisture) as avg_moisture
-            FROM {table_name}
-            WHERE timestamp >= {time_condition}{location_condition}
-            GROUP BY strftime('%Y-%m-%d', timestamp)
-            ORDER BY day_timestamp ASC
-        ''')
-        rows = cursor.fetchall()
-        
-        data_count = len(rows)
-        time_format_rule = get_optimal_time_format(range_param, aggregate_param, data_count, screen_width)
-        
-        timestamps = []
-        for r in rows:
-            timestamp_str = r[0]
-            formatted_time = format_timestamp(timestamp_str, aggregate_param, range_param, data_count, screen_width)
-            timestamps.append(formatted_time)
-        
-        temperatures = [round(r[1], 1) if r[1] else None for r in rows]
-        humidities = [round(r[2], 1) if r[2] else None for r in rows]
-        moistures = [round(r[3], 1) if r[3] else None for r in rows]
+        # 集計方法による SQL クエリの変更
+        if aggregate_param == "raw":
+            cursor.execute(f'''
+                SELECT timestamp, temperature, humidity, soil_moisture
+                FROM {table_name}
+                WHERE timestamp >= {time_condition}{location_condition}
+                ORDER BY timestamp ASC
+            ''')
+            rows = cursor.fetchall()
+            
+            # 高度な時間フォーマット処理
+            data_count = len(rows)
+            time_format_rule = get_optimal_time_format(range_param, aggregate_param, data_count, screen_width)
+            
+            timestamps = []
+            for r in rows:
+                timestamp_str = r[0]
+                formatted_time = format_timestamp(timestamp_str, aggregate_param, range_param, data_count, screen_width)
+                timestamps.append(formatted_time)
+            
+            temperatures = [r[1] for r in rows]
+            humidities = [r[2] for r in rows]
+            moistures = [r[3] for r in rows]
+            
+        elif aggregate_param == "hourly":
+            cursor.execute(f'''
+                SELECT 
+                    strftime('%Y-%m-%d %H:00:00', timestamp) as hour_timestamp,
+                    AVG(temperature) as avg_temp,
+                    AVG(humidity) as avg_humidity,
+                    AVG(soil_moisture) as avg_moisture
+                FROM {table_name}
+                WHERE timestamp >= {time_condition}{location_condition}
+                GROUP BY strftime('%Y-%m-%d %H', timestamp)
+                ORDER BY hour_timestamp ASC
+            ''')
+            rows = cursor.fetchall()
+            
+            data_count = len(rows)
+            time_format_rule = get_optimal_time_format(range_param, aggregate_param, data_count, screen_width)
+            
+            timestamps = []
+            for r in rows:
+                timestamp_str = r[0]
+                formatted_time = format_timestamp(timestamp_str, aggregate_param, range_param, data_count, screen_width)
+                timestamps.append(formatted_time)
+            
+            temperatures = [round(r[1], 1) if r[1] else None for r in rows]
+            humidities = [round(r[2], 1) if r[2] else None for r in rows]
+            moistures = [round(r[3], 1) if r[3] else None for r in rows]
+            
+        elif aggregate_param == "daily":
+            cursor.execute(f'''
+                SELECT 
+                    strftime('%Y-%m-%d 00:00:00', timestamp) as day_timestamp,
+                    AVG(temperature) as avg_temp,
+                    AVG(humidity) as avg_humidity,
+                    AVG(soil_moisture) as avg_moisture
+                FROM {table_name}
+                WHERE timestamp >= {time_condition}{location_condition}
+                GROUP BY strftime('%Y-%m-%d', timestamp)
+                ORDER BY day_timestamp ASC
+            ''')
+            rows = cursor.fetchall()
+            
+            data_count = len(rows)
+            time_format_rule = get_optimal_time_format(range_param, aggregate_param, data_count, screen_width)
+            
+            timestamps = []
+            for r in rows:
+                timestamp_str = r[0]
+                formatted_time = format_timestamp(timestamp_str, aggregate_param, range_param, data_count, screen_width)
+                timestamps.append(formatted_time)
+            
+            temperatures = [round(r[1], 1) if r[1] else None for r in rows]
+            humidities = [round(r[2], 1) if r[2] else None for r in rows]
+            moistures = [round(r[3], 1) if r[3] else None for r in rows]
+
+        # 個別場所用のデータ整理
+        chart_data = {
+            'labels': timestamps,
+            'temperature': temperatures,
+            'humidity': humidities,
+            'soil_moisture': moistures
+        }
     
     # 統計情報の計算（集計方法に応じて変更）
     if aggregate_param == "raw":
@@ -283,7 +360,7 @@ def index():
                 soil_moisture as min_moisture,
                 soil_moisture as max_moisture
             FROM {table_name}
-            WHERE timestamp >= {time_condition}{location_condition}
+            WHERE timestamp >= {time_condition}{(" AND sensor_location = '" + location_param + "'") if location_param != "all" and location_param in locations else ""}
             ORDER BY timestamp DESC
             LIMIT 1
         ''')
@@ -302,7 +379,7 @@ def index():
                 MIN(soil_moisture) as min_moisture,
                 MAX(soil_moisture) as max_moisture
             FROM {table_name}
-            WHERE timestamp >= datetime('now', '-1 hours'){location_condition}
+            WHERE timestamp >= datetime('now', '-1 hours'){(" AND sensor_location = '" + location_param + "'") if location_param != "all" and location_param in locations else ""}
         ''')
     elif aggregate_param == "daily":
         # 1日平均: 直近1日の平均
@@ -319,7 +396,7 @@ def index():
                 MIN(soil_moisture) as min_moisture,
                 MAX(soil_moisture) as max_moisture
             FROM {table_name}
-            WHERE timestamp >= datetime('now', '-1 days'){location_condition}
+            WHERE timestamp >= datetime('now', '-1 days'){(" AND sensor_location = '" + location_param + "'") if location_param != "all" and location_param in locations else ""}
         ''')
     
     stats = cursor.fetchone()
@@ -534,8 +611,36 @@ def index():
                     background: var(--bg-white);
                     padding: 1.5rem;
                     border-radius: 12px;
-                    box-shadow: var(--shadow);
                     margin: 1.5rem 0;
+                }
+                
+                .location-chart-container {
+                    margin-bottom: 1.5rem;  /* 3rem → 1.5rem に変更 */
+                    padding: 1.5rem 0 0 0;  /* 上 右 下 左 */
+                    background: var(--bg-white);
+                    border-radius: 12px;
+                    box-shadow: var(--shadow);
+                }
+
+                .location-title {
+                    font-size: 1.3rem;      /* 1.5rem → 1.3rem に変更 */
+                    font-weight: 700;
+                    margin-bottom: 0;
+                    color: var(--text-dark);
+                    text-align: center;
+                    padding-bottom: 0.3rem; /* 0.5rem → 0.3rem に変更 */
+                    border-bottom: 2px solid var(--border-light); 
+                }
+
+                .chart-container h4 {
+                    margin-bottom: 1rem;
+                    font-size: 1.1rem;
+                    font-weight: 600;
+                    color: var(--text-gray);
+                }
+                
+                .location-chart-container .chart-container {
+                    margin: 0;              /* 1.5rem 0 → 0 に変更 */
                 }
                 
                 .update-info { 
@@ -660,11 +765,13 @@ def index():
                     最終更新: {{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}} |
                     📍 場所: {{current_location}}
                     
+                    % if location_param != "all":
                     <div class="time-format-info">
                         ⏰ 時間表示: {{range_param}}期間の{{aggregate_param}}データに最適化 | 
-                        データ点数: {{len(timestamps)}}点 | 
+                        データ点数: {{len(timestamps) if location_param != "all" else "複数場所"}}点 | 
                         画面幅: {{screen_width}}px
                     </div>
+                    % end
                 </div>
                 
                 <!-- 統計カード -->
@@ -686,13 +793,201 @@ def index():
                     </div>
                 </div>
                 
-                <!-- グラフ -->
-                <div class="chart-container">
-                    <canvas id="chart"></canvas>
-                </div>
+                <!-- グラフ表示部分 (修正版) -->
+                % if location_param == "all":
+                    <!-- 全ての場所選択時: 場所別複合グラフを縦に並べる -->
+                    % for location in locations:
+                        <div class="location-chart-container">
+                            <h3 class="location-title">📍 {{location}}</h3>
+                            
+                            <!-- 複合グラフ（温度・湿度・土壌湿度の3線） -->
+                            <div class="chart-container">
+                                <canvas id="chart_{{location}}"></canvas>
+                            </div>
+                        </div>
+                    % end
+                    
+                % else:
+                    <!-- 個別場所選択時: 現在と同じ（単一グラフセット） -->
+                    <div class="chart-container">
+                        <canvas id="chart"></canvas>
+                    </div>
+                % end
+                
             </div>
             
             <script>
+                // Chart.js グラフ生成ロジック (修正版)
+                function createLocationChart(canvasId, locationData, location) {
+                    const ctx = document.getElementById(canvasId);
+                    if (!ctx) return; // キャンバスが存在しない場合は処理しない
+                    
+                    // 動的な最大ティック数計算
+                    function getMaxTicks() {
+                        const width = window.innerWidth;
+                        const dataCount = locationData.labels ? locationData.labels.length : 0;
+                        
+                        if (width < 600) return Math.min(6, dataCount);
+                        if (width < 900) return Math.min(10, dataCount);
+                        if (width < 1200) return Math.min(15, dataCount);
+                        return Math.min(20, dataCount);
+                    }
+                    
+                    return new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: locationData.labels,
+                            datasets: [
+                                {
+                                    label: '🌡️ 温度 (℃)',
+                                    data: locationData.temperature,
+                                    borderColor: '#e74c3c',
+                                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                                    fill: false,
+                                    tension: 0.3,
+                                    pointRadius: window.innerWidth < 768 ? 2 : 3,
+                                    pointHoverRadius: window.innerWidth < 768 ? 4 : 6
+                                },
+                                {
+                                    label: '💧 湿度 (%)',
+                                    data: locationData.humidity,
+                                    borderColor: '#3498db',
+                                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                                    fill: false,
+                                    tension: 0.3,
+                                    pointRadius: window.innerWidth < 768 ? 2 : 3,
+                                    pointHoverRadius: window.innerWidth < 768 ? 4 : 6
+                                },
+                                {
+                                    label: '🌱 土壌湿度 (%)',
+                                    data: locationData.soil_moisture,
+                                    borderColor: '#27ae60',
+                                    backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                                    fill: false,
+                                    tension: 0.3,
+                                    pointRadius: window.innerWidth < 768 ? 2 : 3,
+                                    pointHoverRadius: window.innerWidth < 768 ? 4 : 6,
+                                    pointBackgroundColor: function(context) {
+                                        const value = context.parsed.y;
+                                        return value < 30 ? '#e74c3c' : '#27ae60';
+                                    }
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            interaction: {
+                                intersect: false,
+                                mode: 'index'
+                            },
+                            plugins: {
+                                legend: {
+                                    position: 'top',
+                                    labels: {
+                                        usePointStyle: true,
+                                        padding: window.innerWidth < 768 ? 10 : 20,
+                                        font: {
+                                            size: window.innerWidth < 768 ? 10 : 12
+                                        }
+                                    }
+                                },
+                                tooltip: {
+                                    backgroundColor: 'rgba(0,0,0,0.8)',
+                                    titleColor: 'white',
+                                    bodyColor: 'white',
+                                    borderColor: '#27ae60',
+                                    borderWidth: 1,
+                                    titleFont: {
+                                        size: window.innerWidth < 768 ? 11 : 13
+                                    },
+                                    bodyFont: {
+                                        size: window.innerWidth < 768 ? 10 : 12
+                                    },
+                                    callbacks: {
+                                        afterLabel: function(context) {
+                                            if (context.datasetIndex === 2 && context.parsed.y < 30) {
+                                                return '⚠️ 水やりが必要です';
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: '📅 時間',
+                                        font: {
+                                            size: window.innerWidth < 768 ? 12 : 14,
+                                            weight: 'bold'
+                                        }
+                                    },
+                                    ticks: {
+                                        maxRotation: window.innerWidth < 768 ? 60 : 45,
+                                        minRotation: window.innerWidth < 768 ? 45 : 0,
+                                        maxTicksLimit: getMaxTicks(),
+                                        font: {
+                                            size: window.innerWidth < 768 ? 9 : 11
+                                        },
+                                        callback: function(value, index, values) {
+                                            const label = this.getLabelForValue(value);
+                                            
+                                            // モバイルでは更に簡略化
+                                            if (window.innerWidth < 768) {
+                                                if (label.includes(' ')) {
+                                                    const parts = label.split(' ');
+                                                    if (parts.length >= 2) {
+                                                        // "06-18 13:30" → "13:30"
+                                                        return parts[1];
+                                                    }
+                                                }
+                                            }
+                                            
+                                            return label;
+                                        }
+                                    },
+                                    grid: {
+                                        display: true,
+                                        color: 'rgba(0,0,0,0.1)'
+                                    }
+                                },
+                                y: {
+                                    title: {
+                                        display: true,
+                                        text: '📊 値',
+                                        font: {
+                                            size: window.innerWidth < 768 ? 12 : 14,
+                                            weight: 'bold'
+                                        }
+                                    },
+                                    ticks: {
+                                        font: {
+                                            size: window.innerWidth < 768 ? 9 : 11
+                                        }
+                                    },
+                                    beginAtZero: true,
+                                    max: 100,
+                                    grid: {
+                                        display: true,
+                                        color: 'rgba(0,0,0,0.1)'
+                                    }
+                                }
+                            },
+                            elements: {
+                                point: {
+                                    radius: window.innerWidth < 768 ? 2 : 3,
+                                    hoverRadius: window.innerWidth < 768 ? 4 : 6,
+                                    borderWidth: 2
+                                },
+                                line: {
+                                    borderWidth: window.innerWidth < 768 ? 2 : 3
+                                }
+                            }
+                        }
+                    });
+                }
+
                 // 画面幅の検出と送信
                 function updateWithScreenWidth(form) {
                     const screenWidth = window.innerWidth;
@@ -727,174 +1022,202 @@ def index():
                     }, 500);
                 });
                 
-                // 動的な最大ティック数計算
-                function getMaxTicks() {
-                    const width = window.innerWidth;
-                    const dataCount = {{len(timestamps)}};
+                // メインのグラフ初期化処理
+                document.addEventListener('DOMContentLoaded', function() {
+                    const locationParam = '{{location_param}}';
+                    const chartData = {{!json.dumps(chart_data)}};
                     
-                    if (width < 600) return Math.min(6, dataCount);
-                    if (width < 900) return Math.min(10, dataCount);
-                    if (width < 1200) return Math.min(15, dataCount);
-                    return Math.min(20, dataCount);
-                }
-                
-                const ctx = document.getElementById('chart').getContext('2d');
-                const chart = new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: {{!json.dumps(timestamps)}},
-                        datasets: [
-                            {
-                                label: '🌡️ 温度 (℃)',
-                                data: {{!json.dumps(temperatures)}},
-                                borderColor: '#e74c3c',
-                                backgroundColor: 'rgba(231, 76, 60, 0.1)',
-                                fill: false,
-                                tension: 0.3,
-                                pointRadius: window.innerWidth < 768 ? 2 : 3,
-                                pointHoverRadius: window.innerWidth < 768 ? 4 : 6
-                            },
-                            {
-                                label: '💧 湿度 (%)',
-                                data: {{!json.dumps(humidities)}},
-                                borderColor: '#3498db',
-                                backgroundColor: 'rgba(52, 152, 219, 0.1)',
-                                fill: false,
-                                tension: 0.3,
-                                pointRadius: window.innerWidth < 768 ? 2 : 3,
-                                pointHoverRadius: window.innerWidth < 768 ? 4 : 6
-                            },
-                            {
-                                label: '🌱 土壌湿度 (%)',
-                                data: {{!json.dumps(moistures)}},
-                                borderColor: '#27ae60',
-                                backgroundColor: 'rgba(39, 174, 96, 0.1)',
-                                fill: false,
-                                tension: 0.3,
-                                pointRadius: window.innerWidth < 768 ? 2 : 3,
-                                pointHoverRadius: window.innerWidth < 768 ? 4 : 6,
-                                pointBackgroundColor: function(context) {
-                                    const value = context.parsed.y;
-                                    return value < 30 ? '#e74c3c' : '#27ae60';
+                    if (locationParam === 'all') {
+                        // 全ての場所選択時: 各場所の複合グラフを作成
+                        const locations = {{!json.dumps(locations)}};
+                        
+                        locations.forEach(location => {
+                            const locationData = chartData[location];
+                            
+                            if (locationData) {
+                                // 各場所の複合グラフ（温度・湿度・土壌湿度の3線）
+                                const chart = createLocationChart(`chart_${location}`, locationData, location);
+                                
+                                // グラフのサイズ調整
+                                if (chart && chart.canvas) {
+                                    chart.canvas.parentNode.style.height = window.innerWidth < 768 ? '300px' : '400px';
                                 }
                             }
-                        ]
-                    },
-                    options: {
-                        responsive: true,
-                        maintainAspectRatio: false,
-                        interaction: {
-                            intersect: false,
-                            mode: 'index'
-                        },
-                        plugins: {
-                            legend: {
-                                position: 'top',
-                                labels: {
-                                    usePointStyle: true,
-                                    padding: window.innerWidth < 768 ? 10 : 20,
-                                    font: {
-                                        size: window.innerWidth < 768 ? 10 : 12
-                                    }
-                                }
-                            },
-                            tooltip: {
-                                backgroundColor: 'rgba(0,0,0,0.8)',
-                                titleColor: 'white',
-                                bodyColor: 'white',
-                                borderColor: '#27ae60',
-                                borderWidth: 1,
-                                titleFont: {
-                                    size: window.innerWidth < 768 ? 11 : 13
-                                },
-                                bodyFont: {
-                                    size: window.innerWidth < 768 ? 10 : 12
-                                },
-                                callbacks: {
-                                    afterLabel: function(context) {
-                                        if (context.datasetIndex === 2 && context.parsed.y < 30) {
-                                            return '⚠️ 水やりが必要です';
+                        });
+                        
+                    } else {
+                        // 個別場所選択時: 現在と同じ（複合グラフ）
+                        
+                        // 動的な最大ティック数計算
+                        function getMaxTicks() {
+                            const width = window.innerWidth;
+                            const dataCount = chartData.labels ? chartData.labels.length : 0;
+                            
+                            if (width < 600) return Math.min(6, dataCount);
+                            if (width < 900) return Math.min(10, dataCount);
+                            if (width < 1200) return Math.min(15, dataCount);
+                            return Math.min(20, dataCount);
+                        }
+                        
+                        const ctx = document.getElementById('chart').getContext('2d');
+                        const chart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: chartData.labels,
+                                datasets: [
+                                    {
+                                        label: '🌡️ 温度 (℃)',
+                                        data: chartData.temperature,
+                                        borderColor: '#e74c3c',
+                                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                                        fill: false,
+                                        tension: 0.3,
+                                        pointRadius: window.innerWidth < 768 ? 2 : 3,
+                                        pointHoverRadius: window.innerWidth < 768 ? 4 : 6
+                                    },
+                                    {
+                                        label: '💧 湿度 (%)',
+                                        data: chartData.humidity,
+                                        borderColor: '#3498db',
+                                        backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                                        fill: false,
+                                        tension: 0.3,
+                                        pointRadius: window.innerWidth < 768 ? 2 : 3,
+                                        pointHoverRadius: window.innerWidth < 768 ? 4 : 6
+                                    },
+                                    {
+                                        label: '🌱 土壌湿度 (%)',
+                                        data: chartData.soil_moisture,
+                                        borderColor: '#27ae60',
+                                        backgroundColor: 'rgba(39, 174, 96, 0.1)',
+                                        fill: false,
+                                        tension: 0.3,
+                                        pointRadius: window.innerWidth < 768 ? 2 : 3,
+                                        pointHoverRadius: window.innerWidth < 768 ? 4 : 6,
+                                        pointBackgroundColor: function(context) {
+                                            const value = context.parsed.y;
+                                            return value < 30 ? '#e74c3c' : '#27ae60';
                                         }
                                     }
-                                }
-                            }
-                        },
-                        scales: {
-                            x: {
-                                title: {
-                                    display: true,
-                                    text: '📅 時間',
-                                    font: {
-                                        size: window.innerWidth < 768 ? 12 : 14,
-                                        weight: 'bold'
-                                    }
+                                ]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                interaction: {
+                                    intersect: false,
+                                    mode: 'index'
                                 },
-                                ticks: {
-                                    maxRotation: window.innerWidth < 768 ? 60 : 45,
-                                    minRotation: window.innerWidth < 768 ? 45 : 0,
-                                    maxTicksLimit: getMaxTicks(),
-                                    font: {
-                                        size: window.innerWidth < 768 ? 9 : 11
+                                plugins: {
+                                    legend: {
+                                        position: 'top',
+                                        labels: {
+                                            usePointStyle: true,
+                                            padding: window.innerWidth < 768 ? 10 : 20,
+                                            font: {
+                                                size: window.innerWidth < 768 ? 10 : 12
+                                            }
+                                        }
                                     },
-                                    callback: function(value, index, values) {
-                                        const label = this.getLabelForValue(value);
-                                        
-                                        // モバイルでは更に簡略化
-                                        if (window.innerWidth < 768) {
-                                            if (label.includes(' ')) {
-                                                const parts = label.split(' ');
-                                                if (parts.length >= 2) {
-                                                    // "06-18 13:30" → "13:30"
-                                                    return parts[1];
+                                    tooltip: {
+                                        backgroundColor: 'rgba(0,0,0,0.8)',
+                                        titleColor: 'white',
+                                        bodyColor: 'white',
+                                        borderColor: '#27ae60',
+                                        borderWidth: 1,
+                                        titleFont: {
+                                            size: window.innerWidth < 768 ? 11 : 13
+                                        },
+                                        bodyFont: {
+                                            size: window.innerWidth < 768 ? 10 : 12
+                                        },
+                                        callbacks: {
+                                            afterLabel: function(context) {
+                                                if (context.datasetIndex === 2 && context.parsed.y < 30) {
+                                                    return '⚠️ 水やりが必要です';
                                                 }
                                             }
                                         }
-                                        
-                                        return label;
                                     }
                                 },
-                                grid: {
-                                    display: true,
-                                    color: 'rgba(0,0,0,0.1)'
-                                }
-                            },
-                            y: {
-                                title: {
-                                    display: true,
-                                    text: '📊 値',
-                                    font: {
-                                        size: window.innerWidth < 768 ? 12 : 14,
-                                        weight: 'bold'
+                                scales: {
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: '📅 時間',
+                                            font: {
+                                                size: window.innerWidth < 768 ? 12 : 14,
+                                                weight: 'bold'
+                                            }
+                                        },
+                                        ticks: {
+                                            maxRotation: window.innerWidth < 768 ? 60 : 45,
+                                            minRotation: window.innerWidth < 768 ? 45 : 0,
+                                            maxTicksLimit: getMaxTicks(),
+                                            font: {
+                                                size: window.innerWidth < 768 ? 9 : 11
+                                            },
+                                            callback: function(value, index, values) {
+                                                const label = this.getLabelForValue(value);
+                                                
+                                                // モバイルでは更に簡略化
+                                                if (window.innerWidth < 768) {
+                                                    if (label.includes(' ')) {
+                                                        const parts = label.split(' ');
+                                                        if (parts.length >= 2) {
+                                                            // "06-18 13:30" → "13:30"
+                                                            return parts[1];
+                                                        }
+                                                    }
+                                                }
+                                                
+                                                return label;
+                                            }
+                                        },
+                                        grid: {
+                                            display: true,
+                                            color: 'rgba(0,0,0,0.1)'
+                                        }
+                                    },
+                                    y: {
+                                        title: {
+                                            display: true,
+                                            text: '📊 値',
+                                            font: {
+                                                size: window.innerWidth < 768 ? 12 : 14,
+                                                weight: 'bold'
+                                            }
+                                        },
+                                        ticks: {
+                                            font: {
+                                                size: window.innerWidth < 768 ? 9 : 11
+                                            }
+                                        },
+                                        beginAtZero: true,
+                                        max: 100,
+                                        grid: {
+                                            display: true,
+                                            color: 'rgba(0,0,0,0.1)'
+                                        }
                                     }
                                 },
-                                ticks: {
-                                    font: {
-                                        size: window.innerWidth < 768 ? 9 : 11
+                                elements: {
+                                    point: {
+                                        radius: window.innerWidth < 768 ? 2 : 3,
+                                        hoverRadius: window.innerWidth < 768 ? 4 : 6,
+                                        borderWidth: 2
+                                    },
+                                    line: {
+                                        borderWidth: window.innerWidth < 768 ? 2 : 3
                                     }
-                                },
-                                beginAtZero: true,
-                                max: 100,
-                                grid: {
-                                    display: true,
-                                    color: 'rgba(0,0,0,0.1)'
                                 }
                             }
-                        },
-                        elements: {
-                            point: {
-                                radius: window.innerWidth < 768 ? 2 : 3,
-                                hoverRadius: window.innerWidth < 768 ? 4 : 6,
-                                borderWidth: 2
-                            },
-                            line: {
-                                borderWidth: window.innerWidth < 768 ? 2 : 3
-                            }
-                        }
+                        });
+                        
+                        // グラフのサイズ調整
+                        chart.canvas.parentNode.style.height = window.innerWidth < 768 ? '300px' : '400px';
                     }
                 });
-                
-                // グラフのサイズ調整
-                chart.canvas.parentNode.style.height = window.innerWidth < 768 ? '300px' : '400px';
                 
                 // 自動更新機能（30秒ごと）- 画面幅情報を含める
                 setInterval(function() {
@@ -930,21 +1253,16 @@ def index():
                 
                 // パフォーマンス情報の表示
                 console.log('📊 Dashboard Performance Info:');
-                console.log(`- Data points: {{len(timestamps)}}`);
+                console.log(`- Location param: {{location_param}}`);
                 console.log(`- Screen width: ${window.innerWidth}px`);
-                console.log(`- Max ticks: ${getMaxTicks()}`);
                 console.log(`- Range: {{range_param}}`);
                 console.log(`- Aggregate: {{aggregate_param}}`);
-                console.log(`- Location: {{location_param}}`);
                 console.log(`- Mobile mode: ${window.innerWidth < 768}`);
             </script>
         </body>
         </html>
     ''', 
-    timestamps=timestamps, 
-    temperatures=temperatures, 
-    humidities=humidities, 
-    moistures=moistures, 
+    chart_data=chart_data,
     range_param=range_param,
     aggregate_param=aggregate_param,
     location_param=location_param,
@@ -952,7 +1270,7 @@ def index():
     current_location=current_location,
     locations=locations,
     screen_width=screen_width,
-    time_format_rule=time_format_rule,
+    timestamps=timestamps if location_param != "all" else [],
     len=len,
     json=json,
     datetime=datetime)
@@ -1052,15 +1370,14 @@ def format_test():
     return json.dumps(test_results, ensure_ascii=False, indent=2)
 
 if __name__ == '__main__':
-    print("🌱 高度な時間表示対応植物管理ダッシュボード起動中...")
+    print("🌱 場所別グラフ表示対応植物管理ダッシュボード起動中...")
     print("🌐 URL: http://0.0.0.0:8080")
-    print("🔧 API endpoints:")
-    print("   - /api/data - 高度フォーマット済みデータ")
-    print("   - /api/format-test - 時間フォーマットテスト")
-    print("⏰ 動的時間表示機能:")
-    print("   ✅ 集計方法別最適化")
-    print("   ✅ 表示期間別調整") 
-    print("   ✅ 画面幅レスポンシブ")
-    print("   ✅ データ点数適応")
-    print("   ✅ センサー場所選択")
+    print("🔧 主な機能:")
+    print("   ✅ 場所別グラフ表示（全ての場所選択時）")
+    print("   ✅ 個別場所グラフ表示")
+    print("   ✅ 集計方法別統計計算")
+    print("   ✅ レスポンシブ対応")
+    print("🎯 新機能:")
+    print("   📊 全ての場所 → 場所別グラフが縦に並ぶ")
+    print("   📍 個別場所 → 従来通り単一グラフセット")
     run(host='0.0.0.0', port=8080, debug=True)
